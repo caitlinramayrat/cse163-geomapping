@@ -1,0 +1,224 @@
+<!--
+SOURCES
+https://d3-graph-gallery.com/graph/barplot_button_color.html
+https://bl.ocks.org/mbostock/5562380
+-->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+    <head>
+    <!-- Meta Tag -->
+    <meta charset="utf-8">
+    <title>CT Population Density</title>
+  </head>
+
+  <body>
+    <h1 style = "text-align:center; color:darkred"><bold> Connecticut Population Density 2022 </bold></h1>
+    <h4>Created by: Caitlin Ramayrat<br>
+    Instructor: Suresh Lodha<br>
+    CSE 163: Data Programming for Visualization, Fall 2022 </h4>
+    <h4>Assistance from Peers:<br>Gurpinder Singh<br>Jackson Nadler-Block</h4>
+    <h4>Online Sources:<br>
+          <a href="//bl.ocks.org/mbostock/5562380">Geomapping Example</a><br>
+          <a href="https://d3-graph-gallery.com/graph/barplot_button_color.html">D3 Buttons</a>
+    </h4>  
+    <h4>
+        <a href="https://github.com/caitlinramayrat/cse163-geomapping">GitHub Link</a><br>  
+    </h4>  
+    
+  </body>
+    <button onclick="redColor()">Red Color</button>
+    <button onclick="blueColor()">Blue Color</button>
+    <button onclick="border()">Border</button>
+    <button onclick="noborder()">No Border</button>
+</html>
+
+<style>
+
+.counties {
+  fill: none;
+  stroke-linejoin: round;
+}
+
+.states {
+  fill: none;
+  stroke: #fff;
+  stroke-linejoin: round;
+}
+    
+.toolTip {
+    position: absolute;
+    display: none;
+    min-width: 80px;
+    height: auto;
+    background: none repeat scroll 0 0 #ffffff;
+    border: 1px solid #6F257F;
+    padding: 14px;
+    text-align: center;
+}
+
+</style>
+
+<svg width="960" height="600"></svg>
+<script src="//d3js.org/d3.v4.min.js"></script>
+<script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+<script src="//d3js.org/topojson.v1.min.js"></script>
+
+<script>
+
+// button function help from Gurpinder Singh.
+// filling the paths with either red or blue color (based on button).
+function redColor() {
+    svg.selectAll("path")
+    .attr("fill", function(d){return color(rateById.get(d.id))})
+    svg.selectAll("rect")
+    .attr("fill", function(d) { return color(d[0]); });
+}
+    
+function blueColor() {
+    svg.selectAll("path")
+    .attr("fill", function(d){return colorBlue(rateById.get(d.id))})
+    svg.selectAll("rect")
+    .attr("fill", function(d) { return colorBlue(d[0]); });
+}
+
+// making the county lines either clear or white (based on button).
+function border() {
+    svg.selectAll('.counties')
+    .attr("stroke", "white")
+    .attr("stroke-width", "1.5px");
+    //.attr("fill", "black");
+}
+    
+function noborder() {
+ svg.selectAll('.counties')
+    .attr("stroke", "clear");   
+}
+
+// making SVG element.
+var svg = d3.select("svg"),
+    width = +svg.attr("width"),
+    height = +svg.attr("height");
+
+var rateById = d3.map();
+
+// red color domain
+var color = d3.scaleThreshold()
+    .domain([1, 10, 50, 200, 500, 1000, 2000, 4000])
+    .range(d3.schemeOrRd[9]);
+ 
+// blue color domain
+var colorBlue = d3.scaleThreshold()
+            .domain([1, 5, 10, 25, 50, 100, 250, 500])
+            .range(d3.schemeBlues[9]);
+    
+var x = d3.scaleSqrt()
+    .domain([0, 4500])
+    .rangeRound([440, 950]);
+
+var g = svg.append("g")
+    .attr("class", "key")
+    .attr("transform", "translate(0,40)");
+
+// tooltip to show county info.
+// taken from my implementation in past assignments.
+var tooltip = d3.select("body").append("div").attr("class", "toolTip");
+    
+// rectangle for the color legend.    
+g.selectAll("rect")
+  .data(color.range().map(function(d) {
+      d = color.invertExtent(d);
+      if (d[0] == null) d[0] = x.domain()[0];
+      if (d[1] == null) d[1] = x.domain()[1];
+      return d;
+    }))
+  .enter().append("rect")
+    .attr("height", 8)
+    .attr("x", function(d) { return x(d[0]); })
+    .attr("width", function(d) { return x(d[1]) - x(d[0]); })
+    .attr("fill", function(d) { return color(d[0]); });
+
+// legend title.
+g.append("text")
+    .attr("class", "caption")
+    .attr("x", x.range()[0])
+    .attr("y", -6)
+    .attr("fill", "#000")
+    .attr("text-anchor", "start")
+    .attr("font-weight", "bold")
+    .text("Population per square mile");
+
+// legend ticks.
+g.call(d3.axisBottom(x)
+    .tickSize(13)
+    .tickValues(color.domain()))
+  .select(".domain")
+    .remove();  
+
+var projection = d3.geoAlbersUsa()
+    .scale(6000)
+    .translate([(width / 2) - 2000 , (height / 2) + 500]);
+
+var path = d3.geoPath()
+    .projection(projection);
+
+// making dictionary to hold county info.
+// will be used in tooltip.
+// idea suggested by Jackson Nadler-Block.
+// key : value --> geoid2 : [county name, population density]
+var dict = {};
+
+d3.queue()
+    .defer(d3.json, "us-10m.json")
+    .defer(d3.csv, "pop-density.csv", function(d) {
+    if (d.label=="Connecticut"){
+        rateById.set(d.geoid2, +d.density);
+    }
+    dict[d.geoid2] = [d.displaylabel, +d.density];
+    })
+    .await(ready);
+
+// console-logged dictionary for debugging purposes.
+console.log("DICT: ", dict);
+
+function ready(error, us) {
+  if (error) throw error;
+   
+  svg.append("g")
+      .attr("class", "counties")
+    .selectAll("path")
+      .data(topojson.feature(us, us.objects.counties).features)
+    .enter().append("path")
+      .attr("fill", function(d) { return color(rateById.get(d.id)); })
+      .attr("d", path)
+    // tooltip stuff
+    .on("mouseover", function(d) {
+        // console logging what's passed in to the function for debugging purposes.
+        console.log("d: ", d);
+        // if what's moused-over has a CT-county id, display its info in the tooltip.
+        if ((d.id == 9001) || (d.id == 9003) || (d.id == 9005) || (d.id == 9007) || (d.id == 9009) || (d.id == 9011) || (d.id == 9013) || (d.id == 9015)) {
+            var name = dict[d.id][0];
+            var den = dict[d.id][1];
+            console.log("NAME: ", name);
+            tooltip
+            .style("left", d3.event.pageX - 50 + "px")
+            .style("top", d3.event.pageY - 70 + "px")
+            .style("display", "inline-block")
+            // displaying county name & population density
+            .html("County: " + name + "<br/>" + "Population Density: " + den);
+        }
+        })
+        .on("mouseout", function(d){
+            tooltip
+                .style("display", "none");
+    });
+    
+
+  svg.append("path")
+      .datum(topojson.mesh(us, us.objects.states, function(a, b) { return a !== b; }))
+      .attr("class", "states")
+      .attr("d", path);
+}
+    
+
+</script>
